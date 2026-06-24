@@ -114,22 +114,23 @@ def clean_data(df):
     df = df[df["result"].isin(["pass","fail"])].copy()
     df["pass"] = df["result"] == "pass"
     if "type" in df.columns:
-        df["type"] = df["type"].str.strip().str.upper().str[:3]
+        df["type"] = df["type"].astype(str).str.strip().str.upper().str[:3]
         df["type"] = df["type"].where(df["type"].isin(["RTO","RVP"]), "RTO")
     if "week" in df.columns:
         df["week"] = pd.to_numeric(df["week"], errors="coerce").fillna(0).astype(int)
         df = df[df["week"] > 0]
     if "vertical" in df.columns:
-        df["vertical"] = (df["vertical"]
+        df["vertical"] = (df["vertical"].astype(str)
             .str.replace(r"^RTO[_ ]+","",regex=True)
             .str.replace(r"^RVP[_ ]+","",regex=True).str.strip())
     if "reason" in df.columns:
-        df["reason"] = df["reason"].fillna("").str.strip()
+        df["reason"] = df["reason"].fillna("").astype(str).str.strip()
         df["reason"] = df["reason"].str.replace(r"^\d+\.\s*","",regex=True).str.strip()
         df.loc[df["reason"].str.lower().isin(["no issue","no issue.",""]), "reason"] = ""
     for col in ["rc","zone","type"]:
         if col in df.columns:
-            df = df[df[col].notna() & (df[col]!="")]
+            df[col] = df[col].astype(str).str.strip()
+        df = df[df[col].notna() & (df[col]!="") & (df[col]!="nan")]
     return df.reset_index(drop=True)
 
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
