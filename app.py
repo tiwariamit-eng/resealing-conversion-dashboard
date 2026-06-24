@@ -110,27 +110,27 @@ def clean_data(df):
     }
     df = df.rename(columns={k:v for k,v in col_map.items() if k in df.columns})
     if "result" not in df.columns: return pd.DataFrame()
-    df["result"] = df["result"].str.strip().str.lower()
+    df["result"] = df["result"].fillna("").astype(str).str.strip().str.lower()
     df = df[df["result"].isin(["pass","fail"])].copy()
     df["pass"] = df["result"] == "pass"
     if "type" in df.columns:
-        df["type"] = df["type"].astype(str).str.strip().str.upper().str[:3]
+        df["type"] = df["type"].fillna("RTO").astype(str).str.strip().str.upper().str[:3]
         df["type"] = df["type"].where(df["type"].isin(["RTO","RVP"]), "RTO")
     if "week" in df.columns:
         df["week"] = pd.to_numeric(df["week"], errors="coerce").fillna(0).astype(int)
         df = df[df["week"] > 0]
     if "vertical" in df.columns:
-        df["vertical"] = (df["vertical"].astype(str)
+        df["vertical"] = (df["vertical"].fillna("").astype(str)
             .str.replace(r"^RTO[_ ]+","",regex=True)
             .str.replace(r"^RVP[_ ]+","",regex=True).str.strip())
     if "reason" in df.columns:
         df["reason"] = df["reason"].fillna("").astype(str).str.strip()
         df["reason"] = df["reason"].str.replace(r"^\d+\.\s*","",regex=True).str.strip()
-        df.loc[df["reason"].str.lower().isin(["no issue","no issue.",""]), "reason"] = ""
-    for col in ["rc","zone","type"]:
+        df.loc[df["reason"].str.lower().isin(["no issue","no issue.","nan",""]), "reason"] = ""
+    for col in ["rc","zone"]:
         if col in df.columns:
-            df[col] = df[col].astype(str).str.strip()
-        df = df[df[col].notna() & (df[col]!="") & (df[col]!="nan")]
+            df[col] = df[col].fillna("").astype(str).str.strip()
+            df = df[(df[col]!="") & (df[col]!="nan")]
     return df.reset_index(drop=True)
 
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
