@@ -102,13 +102,19 @@ def load_all_data():
     return clean_data(pd.concat(dfs, ignore_index=True))
 
 def clean_data(df):
-    col_map = {
-        "RC Name":"rc","Zone":"zone","Week":"week",
-        "RTO / RVP":"type","RTO / RVP Status":"type",
-        "Result":"result","QA remark":"reason",
-        "Vertical 1":"vertical","Brand Name":"brand",
-    }
-    df = df.rename(columns={k:v for k,v in col_map.items() if k in df.columns})
+    # Rename columns safely - handle duplicate mappings
+    for old_col, new_col in [
+        ("RC Name","rc"),("Zone","zone"),("Week","week"),
+        ("Result","result"),("QA remark","reason"),
+        ("Vertical 1","vertical"),("Brand Name","brand"),
+    ]:
+        if old_col in df.columns:
+            df = df.rename(columns={old_col: new_col})
+    # Handle type column - pick first available
+    if "RTO / RVP" in df.columns:
+        df["type"] = df["RTO / RVP"]
+    elif "RTO / RVP Status" in df.columns:
+        df["type"] = df["RTO / RVP Status"]
     if "result" not in df.columns: return pd.DataFrame()
     df["result"] = df["result"].fillna("").astype(str).str.strip().str.lower()
     df = df[df["result"].isin(["pass","fail"])].copy()
