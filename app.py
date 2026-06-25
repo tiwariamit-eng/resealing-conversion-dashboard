@@ -364,12 +364,28 @@ def main():
     html = html.replace('>1,27,871<', '>'+f"{total:,}"+'<')
 
     # Render full-page dashboard
-    # Encode HTML to avoid UnicodeEncodeError with emojis/special chars
-    html_bytes = html.encode('utf-8', errors='replace')
-    html_clean = html_bytes.decode('utf-8')
-    # Use large fixed height with scrolling via CSS (not Streamlit scrolling=True)
-    # This prevents iframe re-renders when user interacts with filters
-    components.html(html_clean, height=7000, scrolling=False)
+    # Encode as base64 data URI to prevent Streamlit from re-rendering
+    # This gives the iframe a stable src so it never reloads on Streamlit reruns
+    html_bytes = html.encode('utf-8')
+    b64_html = base64.b64encode(html_bytes).decode('ascii')
+    data_uri = f"data:text/html;base64,{b64_html}"
+    
+    iframe_code = f'''
+    <iframe 
+        src="{data_uri}"
+        width="100%" 
+        height="6800px"
+        frameborder="0"
+        style="border:none;display:block;overflow:hidden;"
+        scrolling="no"
+        id="dashboard-frame"
+    ></iframe>
+    <style>
+        iframe#dashboard-frame {{ border: none !important; }}
+        .stApp {{ overflow: hidden; }}
+    </style>
+    '''
+    st.markdown(iframe_code, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
