@@ -1,52 +1,68 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import io
-from datetime import datetime
+import io, json, re
+from collections import defaultdict, Counter
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
-import warnings
-warnings.filterwarnings("ignore")
 
 st.set_page_config(
-    page_title="Flipkart — RTO/RVP Resealing Dashboard",
-    page_icon="📦", layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="Flipkart Resealing Dashboard",
+    page_icon="📦",
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
+# Hide streamlit chrome
 st.markdown("""
 <style>
-[data-testid="stAppViewContainer"]{background:#0d0f14}
-[data-testid="stSidebar"]{background:#13161e;border-right:1px solid rgba(255,255,255,0.07)}
-[data-testid="stHeader"]{background:#0d0f14}
-[data-testid="metric-container"]{background:#1e2230;border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:14px 18px}
-[data-testid="stMetricValue"]{font-size:28px!important;font-weight:700!important}
-h1,h2,h3{color:#f0f2f8!important}
-.live-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(54,217,164,0.12);
-  border:1px solid rgba(54,217,164,0.3);color:#36d9a4;font-size:12px;font-weight:700;
-  padding:4px 12px;border-radius:20px;letter-spacing:0.06em}
-.live-dot{width:7px;height:7px;border-radius:50%;background:#36d9a4;display:inline-block;
-  animation:pulse 1.5s infinite}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(54,217,164,0.7)}70%{box-shadow:0 0 0 6px rgba(54,217,164,0)}100%{box-shadow:0 0 0 0 rgba(54,217,164,0)}}
-.sec-hdr{font-size:11px;font-weight:600;color:#8891a8;text-transform:uppercase;
-  letter-spacing:0.09em;margin-bottom:8px;margin-top:4px}
+#MainMenu{visibility:hidden}
+footer{visibility:hidden}
+header{visibility:hidden}
+.block-container{padding:0!important;max-width:100%!important}
+iframe{border:none!important}
 </style>
 """, unsafe_allow_html=True)
 
-# ── SAME AUTH AS PV DASHBOARD ─────────────────────────────────────────────────
-FOLDER_ID = st.secrets["GDRIVE_FOLDER_ID"]
-
+# ── CONSTANTS ──────────────────────────────────────────────────────────────────
 FILE_IDS = [
-    {"id": "1uHkOqI1xQ0vOdgORp0dHSrFgBda7XfkU", "label": "Wk 03-04"},
-    {"id": "1uFFJVjMhM4a_LkdRHlfvYgnLynkVV97d", "label": "Wk 05-06"},
-    {"id": "1XmXAve89lCtGVVLe6DHeLzIe6UwSJ4Tr", "label": "Wk 07-08"},
-    {"id": "1Zhy7UQHvmRFcmmVS1csra1_FScbWC35v", "label": "Wk 09-10"},
-    {"id": "1po7DG4keXC5Wscb6uWzCXOrPIyDwJXxA", "label": "Wk 11-13"},
+    "1C56nffAx64Nb-n_evj6Dvg0ENq_B9ocJ",  # Wk 01-02
+    "1uHkOqI1xQ0vOdgORp0dHSrFgBda7XfkU",  # Wk 03-04
+    "1uFFJVjMhM4a_LkdRHlfvYgnLynkVV97d",  # Wk 05-06
+    "1XmXAve89lCtGVVLe6DHeLzIe6UwSJ4Tr",  # Wk 07-08
+    "1Zhy7UQHvmRFcmmVS1csra1_FScbWC35v",  # Wk 09-10
+    "1po7DG4keXC5Wscb6uWzCXOrPIyDwJXxA",  # Wk 11-13
+    "1JET6E2XUd15MhsH_eve3H9dRcdKTU-HO",  # Wk 14-15
+    "10u01FaIrZAXyyrHqpST5UTGTD-S-m4bp",  # Wk 16-17
+    "1U1i8ZJNOrzrBH-g21zMU5qEJHTbV877k",  # Wk 18-20
+    "1IdtZA1eLualeJmIkWIrObfqoKY7ngdtq",  # Wk 21-23
 ]
 
+MERGE = {
+    'Frk_bts':      ['Frk_bts','Frk_bts_RC'],
+    'Sanpka':       ['Sanpka','Sanpka RC'],
+    'Bhiwandi BTS': ['Bhiwandi BTS','Bhiwandi BTS RC'],
+    'Ahm_Kheda':    ['Ahm_ Kheda','Ahm_Kheda','Ahm_kheda'],
+    'Indore_02':    ['Indore_02','Indore_ 02'],
+    'Nagpur_01':    ['Nagpur_01','Nagpur_01_RC','Nagpur_02'],
+}
+REV = {n:c for c,ns in MERGE.items() for n in ns}
+
+MONTHS    = ['Jan26','Feb26','Mar26','Apr26','May26','Jun26']
+MLABELS   = ['Jan 26','Feb 26','Mar 26','Apr 26','May 26','Jun 26']
+LAST7WKS  = [17,18,19,20,21,22,23]
+ALL_WKS   = [1,2,3,4,5,6,7,8,9,10,11,12,13,16,17,18,19,20,21,22,23]
+
+def wk2m(wk):
+    m={1:'Jan26',2:'Jan26',3:'Jan26',4:'Jan26',
+       5:'Feb26',6:'Feb26',7:'Feb26',8:'Feb26',
+       9:'Mar26',10:'Mar26',11:'Apr26',12:'Apr26',
+       13:'May26',16:'May26',17:'Jun26',18:'Jun26',
+       19:'Jun26',20:'Jun26',21:'Jun26',22:'Jun26',23:'Jun26'}
+    return m.get(wk,'Unknown')
+
+# ── GOOGLE DRIVE AUTH ──────────────────────────────────────────────────────────
 def get_drive_service():
     creds = Credentials(
         token=None,
@@ -56,324 +72,251 @@ def get_drive_service():
         client_secret=st.secrets["GOOGLE_CLIENT_SECRET"],
         scopes=["https://www.googleapis.com/auth/drive.readonly"],
     )
-    return build("drive", "v3", credentials=creds, cache_discovery=False)
+    return build("drive","v3",credentials=creds,cache_discovery=False)
 
-# ── CHART THEME ───────────────────────────────────────────────────────────────
-BG="#1e2230";GRID="rgba(255,255,255,0.05)";MUTED="#8891a8"
-GREEN="#36d9a4";RED="#f05050";BLUE="#4f8ef7";AMBER="#f5a623"
-
-def base_layout():
-    return dict(plot_bgcolor=BG, paper_bgcolor=BG,
-        font=dict(color=MUTED, family="Inter,sans-serif", size=11),
-        margin=dict(l=10, r=10, t=30, b=10),
-        xaxis=dict(gridcolor=GRID, zerolinecolor=GRID),
-        yaxis=dict(gridcolor=GRID, zerolinecolor=GRID))
-
-# ── LOAD DATA ─────────────────────────────────────────────────────────────────
+# ── LOAD & PROCESS DATA ────────────────────────────────────────────────────────
 @st.cache_data(ttl=300, show_spinner=False)
 def load_all_data():
     try:
-        service = get_drive_service()
+        svc = get_drive_service()
     except Exception as e:
-        st.error(f"❌ Google Drive auth failed: {e}")
-        return pd.DataFrame()
+        st.error(f"Drive auth failed: {e}")
+        return None
 
-    dfs = []
-    bar = st.progress(0, text="Loading data from Google Drive...")
-    for i, f in enumerate(FILE_IDS):
+    all_rows = []
+    for fid in FILE_IDS:
         try:
-            request = service.files().get_media(fileId=f["id"])
+            req = svc.files().get_media(fileId=fid)
             buf = io.BytesIO()
-            downloader = MediaIoBaseDownload(buf, request)
+            dl  = MediaIoBaseDownload(buf, req)
             done = False
-            while not done:
-                _, done = downloader.next_chunk()
+            while not done: _, done = dl.next_chunk()
             buf.seek(0)
-            df = pd.read_csv(buf, low_memory=False, on_bad_lines="skip")
-            df["_src"] = f["label"]
-            dfs.append(df)
-        except Exception as e:
-            st.warning(f"Could not load {f['label']}: {e}")
-        bar.progress(int((i+1)/len(FILE_IDS)*100), text=f"Loaded {f['label']} ({i+1}/{len(FILE_IDS)})")
-    bar.empty()
+            df = pd.read_csv(buf, low_memory=False, on_bad_lines='skip')
+            all_rows.append(df)
+        except Exception:
+            pass
 
-    if not dfs:
-        return pd.DataFrame()
-    return clean_data(pd.concat(dfs, ignore_index=True))
+    if not all_rows:
+        return None
+    return pd.concat(all_rows, ignore_index=True)
 
-def clean_data(df):
-    # Rename columns safely - handle duplicate mappings
-    for old_col, new_col in [
-        ("RC Name","rc"),("Zone","zone"),("Week","week"),
-        ("Result","result"),("QA remark","reason"),
-        ("Vertical 1","vertical"),("Brand Name","brand"),
-    ]:
-        if old_col in df.columns:
-            df = df.rename(columns={old_col: new_col})
-    # Handle type column - pick first available
-    if "RTO / RVP" in df.columns:
-        df["type"] = df["RTO / RVP"]
-    elif "RTO / RVP Status" in df.columns:
-        df["type"] = df["RTO / RVP Status"]
-    if "result" not in df.columns: return pd.DataFrame()
-    df["result"] = df["result"].fillna("").astype(str).str.strip().str.lower()
-    df = df[df["result"].isin(["pass","fail"])].copy()
-    df["pass"] = df["result"] == "pass"
-    if "type" in df.columns:
-        df["type"] = df["type"].fillna("RTO").astype(str).str.strip().str.upper().str[:3]
-        df["type"] = df["type"].where(df["type"].isin(["RTO","RVP"]), "RTO")
-    if "week" in df.columns:
-        df["week"] = pd.to_numeric(df["week"], errors="coerce").fillna(0).astype(int)
-        df = df[df["week"] > 0]
-    if "vertical" in df.columns:
-        df["vertical"] = (df["vertical"].fillna("").astype(str)
-            .str.replace(r"^RTO[_ ]+","",regex=True)
-            .str.replace(r"^RVP[_ ]+","",regex=True).str.strip())
-    if "reason" in df.columns:
-        df["reason"] = df["reason"].fillna("").astype(str).str.strip()
-        df["reason"] = df["reason"].str.replace(r"^\d+\.\s*","",regex=True).str.strip()
-        df.loc[df["reason"].str.lower().isin(["no issue","no issue.","nan",""]), "reason"] = ""
-    for col in ["rc","zone"]:
-        if col in df.columns:
-            df[col] = df[col].fillna("").astype(str).str.strip()
-            df = df[(df[col]!="") & (df[col]!="nan")]
-    return df.reset_index(drop=True)
+def process_data(df):
+    # Rename columns
+    cm = {'RC Name':'rc','Zone':'zone','Week':'week','Result':'result',
+          'RTO / RVP':'type','RTO / RVP Status':'type',
+          'QA remark':'reason','Vertical 1':'vert'}
+    df = df.rename(columns={k:v for k,v in cm.items() if k in df.columns})
+    if 'result' not in df.columns: return None
 
-# ── SIDEBAR ───────────────────────────────────────────────────────────────────
-def render_sidebar(df):
-    with st.sidebar:
-        st.markdown("""
-        <div style='text-align:center;padding:10px 0'>
-          <div style='background:linear-gradient(135deg,#1d4ed8,#4f8ef7);color:#fff;
-            font-size:11px;font-weight:700;padding:3px 12px;border-radius:4px;display:inline-block'>
-            FLIPKART</div>
-          <div style='font-size:14px;font-weight:600;color:#f0f2f8;margin-top:8px'>RTO / RVP Resealing</div>
-          <div style='font-size:11px;color:#8891a8'>Live Dashboard 2026</div>
-        </div>""", unsafe_allow_html=True)
-        st.markdown('<div class="live-badge"><span class="live-dot"></span>&nbsp;LIVE</div>', unsafe_allow_html=True)
-        st.caption(f"Updated: {datetime.now().strftime('%d %b %Y %H:%M:%S')}")
-        st.markdown("---")
-        st.markdown("### 🔍 Filters")
-        zones = ["All Zones"] + sorted(df["zone"].dropna().unique().tolist())
-        sel_zone = st.selectbox("Zone", zones)
-        df_z = df if sel_zone=="All Zones" else df[df["zone"]==sel_zone]
-        rcs = ["All RC / Sites"] + sorted(df_z["rc"].dropna().unique().tolist())
-        sel_rc = st.selectbox("RC / Site", rcs)
-        weeks = ["All Weeks"] + [str(w) for w in sorted(df["week"].unique())]
-        sel_week = st.selectbox("Week", weeks)
-        verts = ["All Verticals"]
-        if "vertical" in df.columns:
-            verts += sorted(df["vertical"].dropna().unique().tolist())
-        sel_vert = st.selectbox("Vertical", verts)
-        sel_type = st.selectbox("Type", ["RTO + RVP","RTO only","RVP only"])
-        st.markdown("---")
-        st.markdown("### 📁 Upload New CSV")
-        uploaded = st.file_uploader("Add new weekly file", type=["csv"])
-        st.markdown("---")
-        if st.button("🔄 Refresh Data", use_container_width=True):
-            st.cache_data.clear()
-            st.rerun()
-        st.caption("Auto-refreshes every 5 minutes")
-    return sel_zone, sel_rc, sel_week, sel_vert, sel_type, uploaded
+    df['result'] = df['result'].fillna('').astype(str).str.strip().str.lower()
+    df = df[df['result'].isin(['pass','fail'])].copy()
+    df['pass'] = df['result']=='pass'
 
-def apply_filters(df, sz, sr, sw, sv, stype):
-    fd = df.copy()
-    if sz != "All Zones":      fd = fd[fd["zone"]==sz]
-    if sr != "All RC / Sites": fd = fd[fd["rc"]==sr]
-    if sw != "All Weeks":      fd = fd[fd["week"]==int(sw)]
-    if sv != "All Verticals" and "vertical" in fd.columns: fd = fd[fd["vertical"]==sv]
-    if stype == "RTO only":    fd = fd[fd["type"]=="RTO"]
-    elif stype == "RVP only":  fd = fd[fd["type"]=="RVP"]
-    return fd
+    if 'type' in df.columns:
+        df['type'] = df['type'].fillna('RTO').astype(str).str.strip().str.upper().str[:3]
+        df['type'] = df['type'].where(df['type'].isin(['RTO','RVP']),'RTO')
+    else:
+        df['type'] = 'RTO'
 
-# ── KPIs ──────────────────────────────────────────────────────────────────────
-def render_kpis(df, dff):
-    t=len(df); p=int(df["pass"].sum()); f=t-p
-    pct=round(p/t*100,1) if t else 0
-    fpct=round(dff["pass"].sum()/len(dff)*100,1) if len(dff) else 0
-    c1,c2,c3,c4,c5,c6 = st.columns(6)
-    c1.metric("📦 Total Records", f"{t:,}",  f"{df['week'].nunique()} weeks")
-    c2.metric("✅ PV Pass",       f"{p:,}",   f"{pct}% pass rate")
-    c3.metric("❌ PV Fail",       f"{f:,}",   f"{round(f/t*100,1) if t else 0}% fail rate")
-    c4.metric("🎯 Pass %",        f"{pct}%",  f"{round(pct-fpct,1):+.1f}% vs overall", delta_color="normal")
-    c5.metric("🏭 Active Sites",  f"{df['rc'].nunique()}", f"{df['zone'].nunique()} zones")
-    c6.metric("📅 Weeks",         f"{df['week'].nunique()}", f"Wk {df['week'].min()}–{df['week'].max()}" if df['week'].nunique() else "")
+    df['week'] = pd.to_numeric(df.get('week',0), errors='coerce').fillna(0).astype(int)
+    df = df[df['week']>0]
 
-# ── CHARTS ────────────────────────────────────────────────────────────────────
-def chart_zone(df):
-    g=df.groupby("zone").agg(t=("pass","count"),p=("pass","sum")).reset_index()
-    g["pct"]=(g["p"]/g["t"]*100).round(1)
-    g["c"]=g["pct"].apply(lambda x:GREEN if x>=85 else AMBER if x>=70 else RED)
-    fig=go.Figure(go.Bar(x=g["zone"],y=g["pct"],marker_color=g["c"],
-        text=g["pct"].astype(str)+"%",textposition="outside",marker_line_width=0))
-    fig.update_layout(**base_layout(),yaxis_range=[0,110],yaxis_ticksuffix="%",height=240)
-    return fig
+    df['rc']   = df['rc'].fillna('').astype(str).str.strip().map(lambda x: REV.get(x,x))
+    df['zone'] = df['zone'].fillna('').astype(str).str.strip()
+    df['vert'] = df.get('vert', pd.Series(['Electronics']*len(df))).fillna('Electronics').astype(str).str.strip()
+    df['vert'] = df['vert'].str.replace(r'^RTO[_ ]+','',regex=True).str.replace(r'^RVP[_ ]+','',regex=True).str.strip()
+    df['reason'] = df.get('reason', pd.Series(['']*len(df))).fillna('').astype(str).str.strip()
+    df.loc[df['reason'].str.lower().isin(['no issue','no issue.','']), 'reason'] = ''
+    df['month'] = df['week'].map(wk2m)
 
-def chart_week(df):
-    g=df.groupby("week").agg(t=("pass","count"),p=("pass","sum")).reset_index().sort_values("week")
-    g["pct"]=(g["p"]/g["t"]*100).round(1)
-    fig=make_subplots(specs=[[{"secondary_y":True}]])
-    fig.add_trace(go.Bar(x=g["week"].astype(str),y=g["t"],name="Volume",
-        marker_color="rgba(79,142,247,0.25)",marker_line_width=0),secondary_y=True)
-    fig.add_trace(go.Scatter(x=g["week"].astype(str),y=g["pct"],name="Pass %",
-        line=dict(color=GREEN,width=2.5),mode="lines+markers",
-        marker=dict(size=6,color=GREEN)),secondary_y=False)
-    fig.update_layout(**base_layout(),height=240,showlegend=False)
-    fig.update_yaxes(ticksuffix="%",range=[0,100],secondary_y=False,gridcolor=GRID)
-    fig.update_yaxes(showgrid=False,secondary_y=True)
-    return fig
+    return df[df['rc']!=''].reset_index(drop=True)
 
-def chart_donut(df):
-    c=df["type"].value_counts().reset_index();c.columns=["type","count"]
-    fig=px.pie(c,values="count",names="type",hole=0.66,color="type",
-        color_discrete_map={"RTO":BLUE,"RVP":GREEN})
-    fig.update_traces(textinfo="none")
-    fig.update_layout(**base_layout(),height=200,
-        legend=dict(orientation="h",y=-0.1,font=dict(color=MUTED,size=11)))
-    return fig
+def build_js_data(df):
+    rc_zones = dict(df.groupby('rc')['zone'].first())
+    stats    = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: [0,0])))
+    rd       = defaultdict(list)  # reason detail
+    reasons_overall = Counter()
+    reasons_rto     = Counter()
+    reasons_rvp     = Counter()
+    reasons_by_zone = {'overall':defaultdict(Counter),'rto':defaultdict(Counter),'rvp':defaultdict(Counter)}
+    reasons_by_rc   = {'overall':defaultdict(Counter),'rto':defaultdict(Counter),'rvp':defaultdict(Counter)}
 
-def chart_type(df):
-    g=df.groupby("type").agg(t=("pass","count"),p=("pass","sum")).reset_index()
-    g["pct"]=(g["p"]/g["t"]*100).round(1);g["f"]=100-g["pct"]
-    fig=go.Figure()
-    fig.add_trace(go.Bar(name="Pass",x=g["type"],y=g["pct"],marker_color=[BLUE,GREEN],
-        marker_line_width=0,text=g["pct"].astype(str)+"%",textposition="inside"))
-    fig.add_trace(go.Bar(name="Fail",x=g["type"],y=g["f"],
-        marker_color="rgba(240,80,80,0.35)",marker_line_width=0))
-    fig.update_layout(**base_layout(),barmode="stack",height=240,
-        yaxis_ticksuffix="%",yaxis_range=[0,100],showlegend=False)
-    return fig
+    for _, row in df.iterrows():
+        rc, zone, wk, typ, res, vert, reason, month = (
+            row['rc'], row['zone'], row['week'], row['type'],
+            row['result'], row['vert'], row['reason'], row['month']
+        )
+        p = 1 if res=='pass' else 0
+        for key in [wk, month]:
+            stats[rc][key][typ][0]      += 1
+            stats[rc][key]['overall'][0] += 1
+            stats[rc][key][typ][1]       += p
+            stats[rc][key]['overall'][1] += p
 
-def chart_vert(df):
-    if "vertical" not in df.columns: return None
-    g=df.groupby("vertical").agg(t=("pass","count"),p=("pass","sum")).reset_index()
-    g["pct"]=(g["p"]/g["t"]*100).round(1)
-    g["c"]=g["pct"].apply(lambda x:GREEN if x>=85 else AMBER if x>=70 else RED)
-    fig=go.Figure(go.Bar(x=g["vertical"],y=g["pct"],marker_color=g["c"],
-        marker_line_width=0,text=g["pct"].astype(str)+"%",textposition="outside"))
-    fig.update_layout(**base_layout(),height=240,yaxis_ticksuffix="%",yaxis_range=[0,110])
-    return fig
+        if res=='fail' and reason:
+            reasons_overall[reason] += 1
+            rk = 'rto' if typ=='RTO' else 'rvp'
+            (reasons_rto if typ=='RTO' else reasons_rvp)[reason] += 1
+            reasons_by_zone['overall'][zone][reason] += 1
+            reasons_by_zone[rk][zone][reason]         += 1
+            reasons_by_rc['overall'][rc][reason]       += 1
+            reasons_by_rc[rk][rc][reason]              += 1
+            rd[rc].append({'m':month,'w':int(wk),'t':typ,'v':vert,'r':reason,'c':1})
 
-def chart_zone_vol(df):
-    g=df.groupby(["zone","pass"]).size().reset_index(name="count")
-    g["label"]=g["pass"].map({True:"Pass",False:"Fail"})
-    fig=px.bar(g,x="zone",y="count",color="label",
-        color_discrete_map={"Pass":GREEN,"Fail":RED},barmode="stack")
-    fig.update_layout(**base_layout(),height=260,
-        legend=dict(orientation="h",y=1.1,font=dict(color=MUTED,size=11)))
-    fig.update_traces(marker_line_width=0)
-    return fig
+    def gs(rc,key,typ):
+        return stats.get(rc,{}).get(key,{}).get(typ,[0,0])
+    def gbl(key,typ):
+        t,p=0,0
+        for rc in stats:
+            v=stats[rc].get(key,{}).get(typ,[0,0]); t+=v[0]; p+=v[1]
+        return [t,p]
+    def mf(d): return ','.join(k+':'+json.dumps(v) for k,v in d.items() if v[0]>0)
+    def wf(d): return ','.join(str(k)+':'+json.dumps(v) for k,v in d.items() if v[0]>0)
 
-def chart_reasons(df):
-    if "reason" not in df.columns: return None
-    fails=df[(df["pass"]==False)&(df["reason"]!="")]
-    if fails.empty: return None
-    top=fails["reason"].value_counts().head(8).reset_index()
-    top.columns=["reason","count"]
-    fig=go.Figure(go.Bar(y=top["reason"].str[:45],x=top["count"],orientation="h",
-        marker_color=AMBER,marker_line_width=0,text=top["count"],textposition="outside"))
-    fig.update_layout(**base_layout(),height=max(260,len(top)*38),
-        yaxis=dict(autorange="reversed",gridcolor=GRID))
-    return fig
+    # Collapse rd: aggregate per (rc, month, wk, type, vert, reason)
+    rd_agg = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: 0)))))
+    for rc, entries in rd.items():
+        for e in entries:
+            rd_agg[rc][e['m']][e['w']][e['t']][e['v']+'\x00'+e['r']] += e['c']
 
-def chart_heatmap(df):
-    g=df.groupby(["rc","week"]).agg(t=("pass","count"),p=("pass","sum")).reset_index()
-    g["pct"]=(g["p"]/g["t"]*100).round(1)
-    pivot=g.pivot(index="rc",columns="week",values="pct").fillna(0)
-    fig=go.Figure(go.Heatmap(z=pivot.values,
-        x=["Wk "+str(c) for c in pivot.columns],y=pivot.index.tolist(),
-        colorscale=[[0,RED],[0.7,AMBER],[1,GREEN]],zmin=0,zmax=100,
-        hovertemplate="<b>%{y}</b><br>%{x}: %{z}%<extra></extra>",
-        text=pivot.values.round(0).astype(int),texttemplate="%{text}%",
-        textfont=dict(size=9)))
-    fig.update_layout(**base_layout(),height=max(300,len(pivot)*28))
-    return fig
+    reason_objs = []
+    for rc in rd_agg:
+        flat = []
+        for m, wks_d in rd_agg[rc].items():
+            for wk, typs in wks_d.items():
+                for typ, vr in typs.items():
+                    for vr_key, cnt in vr.items():
+                        v, r = vr_key.split('\x00',1)
+                        flat.append({'m':m,'w':wk,'t':typ,'v':v,'r':r,'c':cnt})
+        reason_objs.append('{rc:'+json.dumps(rc)+',d:'+json.dumps(flat)+'}')
 
-def render_table(df):
-    g=df.groupby(["rc","zone"]).agg(Total=("pass","count"),Pass=("pass","sum")).reset_index()
-    g["Fail"]=g["Total"]-g["Pass"]
-    g["Pass %"]=(g["Pass"]/g["Total"]*100).round(1)
-    rto=df[df["type"]=="RTO"].groupby("rc").size().rename("RTO")
-    rvp=df[df["type"]=="RVP"].groupby("rc").size().rename("RVP")
-    g=g.merge(rto,left_on="rc",right_index=True,how="left")
-    g=g.merge(rvp,left_on="rc",right_index=True,how="left")
-    g[["RTO","RVP"]]=g[["RTO","RVP"]].fillna(0).astype(int)
-    g=g.sort_values("Total",ascending=False).reset_index(drop=True)
-    g.columns=["RC / Site","Zone","Total","Pass","Fail","Pass %","RTO","RVP"]
-    st.dataframe(g.style.format({"Total":"{:,}","Pass":"{:,}","Fail":"{:,}",
-        "Pass %":"{:.1f}%","RTO":"{:,}","RVP":"{:,}"}),
-        use_container_width=True,height=380)
+    # RC objects
+    rc_objs = []
+    for rc, zone in sorted(rc_zones.items(), key=lambda x:(x[1],x[0])):
+        wo = {w:gs(rc,w,'overall') for w in LAST7WKS}
+        if sum(v[0] for v in wo.values())==0: continue
+        mo = {m:gs(rc,m,'overall') for m in MONTHS}
+        mr = {m:gs(rc,m,'RTO')     for m in MONTHS}
+        mv = {m:gs(rc,m,'RVP')     for m in MONTHS}
+        wr = {w:gs(rc,w,'RTO')     for w in LAST7WKS}
+        wv = {w:gs(rc,w,'RVP')     for w in LAST7WKS}
+        rr = dict(reasons_by_rc['overall'].get(rc,Counter()).most_common(8))
+        s  = '{rc:'+json.dumps(rc)+',zone:'+json.dumps(zone)
+        s += ',mth:{overall:{'+mf(mo)+'},rto:{'+mf(mr)+'},rvp:{'+mf(mv)+'}}'
+        s += ',wk:{overall:{'+wf(wo)+'},rto:{'+wf(wr)+'},rvp:{'+wf(wv)+'}}'
+        s += ',reasons:'+json.dumps(rr)+'}'
+        rc_objs.append(s)
 
-# ── MAIN ──────────────────────────────────────────────────────────────────────
+    # Global stats
+    wko={w:gbl(w,'overall') for w in ALL_WKS}
+    wkr={w:gbl(w,'RTO')     for w in ALL_WKS}
+    wkv={w:gbl(w,'RVP')     for w in ALL_WKS}
+    mto={m:gbl(m,'overall') for m in MONTHS}
+    mtr={m:gbl(m,'RTO')     for m in MONTHS}
+    mtv={m:gbl(m,'RVP')     for m in MONTHS}
+
+    # Trend / declining
+    def get_dec():
+        dec = []
+        seen = set()
+        for rc, zone in rc_zones.items():
+            for typ in ['overall','RTO','RVP']:
+                wk_vals = {}
+                for w in LAST7WKS:
+                    v = stats[rc].get(w,{}).get(typ,[0,0])
+                    if v[0]>0: wk_vals[w] = round(v[1]/v[0]*100,1)
+                if len(wk_vals)<3: continue
+                early = [wk_vals[w] for w in LAST7WKS[:3] if w in wk_vals]
+                late  = [wk_vals[w] for w in LAST7WKS[4:] if w in wk_vals]
+                if not early or not late: continue
+                ae,al = sum(early)/len(early), sum(late)/len(late)
+                drop  = round(ae-al,1)
+                if drop<=1.5 or (rc,typ) in seen: continue
+                seen.add((rc,typ))
+                top_r = list(reasons_by_rc['overall'].get(rc,Counter()).keys())
+                top_r = top_r[0] if top_r else ''
+                obs = ('🔴 Critical drop.' if drop>15 else '🟠 Significant decline.' if drop>7 else '🟡 Moderate decline.')
+                obs += f' {typ} down {drop}% (Wk17→Wk23).'
+                dec.append({'rc':rc,'zone':zone,'type':typ,
+                            'avg_early':round(ae,1),'avg_late':round(al,1),'drop':drop,
+                            'wk_vals':{str(w):v for w,v in wk_vals.items()},
+                            'top_reason':top_r[:60],'obs':obs})
+        return sorted(dec, key=lambda x:-x['drop'])[:25]
+
+    declining = get_dec()
+    top6 = [r for r,_ in reasons_overall.most_common(6)]
+    chart_data = {r:[0]*len(LAST7WKS) for r in top6}
+    for rc, entries in rd.items():
+        for e in entries:
+            if e['w'] in LAST7WKS and e['r'] in chart_data:
+                chart_data[e['r']][LAST7WKS.index(e['w'])] += e['c']
+
+    all_verts = sorted(set(df['vert'].dropna().unique()) - {''})
+
+    lines = [
+        'const MONTHS='+json.dumps(MONTHS)+';',
+        'const MLABELS='+json.dumps(MLABELS)+';',
+        'const LAST7WKS='+json.dumps(LAST7WKS)+';',
+        'const ALL_WKS='+json.dumps(ALL_WKS)+';',
+        'const ALL_VERTS='+json.dumps(all_verts)+';',
+        'const REASONS_OVERALL='+json.dumps(dict(reasons_overall.most_common(12)))+';',
+        'const REASONS_RTO='+json.dumps(dict(reasons_rto.most_common(12)))+';',
+        'const REASONS_RVP='+json.dumps(dict(reasons_rvp.most_common(12)))+';',
+        'const REASONS_BY_ZONE='+json.dumps({'overall':{z:dict(c.most_common(8)) for z,c in reasons_by_zone['overall'].items()},'rto':{z:dict(c.most_common(8)) for z,c in reasons_by_zone['rto'].items()},'rvp':{z:dict(c.most_common(8)) for z,c in reasons_by_zone['rvp'].items()}})+';',
+        'const REASONS_BY_RC='+json.dumps({'overall':{rc:dict(c.most_common(8)) for rc,c in reasons_by_rc['overall'].items()},'rto':{rc:dict(c.most_common(8)) for rc,c in reasons_by_rc['rto'].items()},'rvp':{rc:dict(c.most_common(8)) for rc,c in reasons_by_rc['rvp'].items()}})+';',
+        'const WK_OV={'+','.join(str(k)+':'+json.dumps(v) for k,v in wko.items() if v[0]>0)+'};',
+        'const WK_RTO={'+','.join(str(k)+':'+json.dumps(v) for k,v in wkr.items() if v[0]>0)+'};',
+        'const WK_RVP={'+','.join(str(k)+':'+json.dumps(v) for k,v in wkv.items() if v[0]>0)+'};',
+        'const MTH_OV={'+','.join('"'+k+'":'+json.dumps(v) for k,v in mto.items() if v[0]>0)+'};',
+        'const MTH_RTO={'+','.join('"'+k+'":'+json.dumps(v) for k,v in mtr.items() if v[0]>0)+'};',
+        'const MTH_RVP={'+','.join('"'+k+'":'+json.dumps(v) for k,v in mtv.items() if v[0]>0)+'};',
+        'const DECLINING='+json.dumps(declining)+';',
+        'const TOP6_REASONS='+json.dumps(top6)+';',
+        'const CHART_DATA='+json.dumps(chart_data)+';',
+        'const TREND_WKS='+json.dumps(LAST7WKS)+';',
+        'const RC_DATA=[\n'+',\n'.join(rc_objs)+'\n];',
+        'const REASON_DATA=[\n'+',\n'.join(reason_objs)+'\n];',
+    ]
+    return '\n'.join(lines), len(df)
+
+# ── MAIN ───────────────────────────────────────────────────────────────────────
 def main():
-    c1,c2=st.columns([4,1])
-    with c1:
-        st.markdown("""
-        <h1 style='font-size:22px;font-weight:700;color:#f0f2f8;margin:0'>
-        📦 RTO / RVP Resealing Dashboard</h1>
-        <p style='font-size:12px;color:#8891a8;margin:2px 0 0'>
-        All Zones · All Sites · Weeks 3–13 · Flipkart Internal · 2026</p>
-        """, unsafe_allow_html=True)
-    with c2:
-        st.markdown('<div style="text-align:right;padding-top:8px"><div class="live-badge"><span class="live-dot"></span>&nbsp;LIVE</div></div>',unsafe_allow_html=True)
-    st.markdown("---")
+    # Load HTML template
+    try:
+        template = open('/app/dashboard_template.html').read()
+    except:
+        try:
+            template = open('dashboard_template.html').read()
+        except Exception as e:
+            st.error(f"Template not found: {e}")
+            return
 
     with st.spinner("🔄 Loading data from Google Drive..."):
-        df_full = load_all_data()
+        raw_df = load_all_data()
 
-    if df_full.empty:
-        st.error("❌ No data loaded. Check Google Drive connection.")
+    if raw_df is None:
+        st.error("❌ Could not load data from Google Drive.")
         return
 
-    sz,sr,sw,sv,stype,up = render_sidebar(df_full)
+    with st.spinner("⚙️ Processing data..."):
+        df = process_data(raw_df)
 
-    if up:
-        try:
-            nd=pd.read_csv(up,low_memory=False,on_bad_lines="skip")
-            nd=clean_data(nd)
-            if not nd.empty:
-                df_full=pd.concat([df_full,nd],ignore_index=True)
-                st.sidebar.success(f"✅ Added {len(nd):,} rows from {up.name}")
-        except Exception as e:
-            st.sidebar.error(f"Error: {e}")
-
-    df=apply_filters(df_full,sz,sr,sw,sv,stype)
-    if df.empty:
-        st.warning("No records match current filters.")
+    if df is None or len(df)==0:
+        st.error("❌ No valid data found.")
         return
 
-    render_kpis(df, df_full)
-    st.markdown("---")
+    with st.spinner("📊 Building dashboard..."):
+        js_data, total = build_js_data(df)
 
-    st.markdown('<div class="sec-hdr">Zone Performance & Weekly Trend</div>',unsafe_allow_html=True)
-    a,b=st.columns(2)
-    with a: st.plotly_chart(chart_zone(df),use_container_width=True)
-    with b: st.plotly_chart(chart_week(df),use_container_width=True)
+    # Inject data into template
+    html = template.replace('DATABLOCK', js_data)
 
-    st.markdown('<div class="sec-hdr">Shipment Type & Vertical</div>',unsafe_allow_html=True)
-    a,b,c=st.columns(3)
-    with a: st.plotly_chart(chart_donut(df),use_container_width=True)
-    with b: st.plotly_chart(chart_type(df),use_container_width=True)
-    with c:
-        vc=chart_vert(df)
-        if vc: st.plotly_chart(vc,use_container_width=True)
+    # Update record count in header
+    html = html.replace('>1,27,871<', '>'+f"{total:,}"+'<')
 
-    st.markdown('<div class="sec-hdr">Volume & Fail Analysis</div>',unsafe_allow_html=True)
-    a,b=st.columns([3,2])
-    with a: st.plotly_chart(chart_zone_vol(df),use_container_width=True)
-    with b:
-        fc=chart_reasons(df)
-        if fc: st.plotly_chart(fc,use_container_width=True)
-        else: st.info("No fail reason data.")
+    # Render full-page dashboard
+    components.html(html, height=4000, scrolling=True)
 
-    st.markdown('<div class="sec-hdr">RC × Week Heatmap</div>',unsafe_allow_html=True)
-    st.plotly_chart(chart_heatmap(df),use_container_width=True)
-
-    st.markdown('<div class="sec-hdr">Site-level Breakdown</div>',unsafe_allow_html=True)
-    render_table(df)
-
-    st.markdown("---")
-    st.caption(f"Showing {len(df):,} of {len(df_full):,} records · Updated: {datetime.now().strftime('%d %b %Y %H:%M:%S')} · Auto-refresh every 5 min")
-
-if __name__=="__main__":
+if __name__ == "__main__":
     main()

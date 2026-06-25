@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Flipkart Resealing Conversion Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Inter',sans-serif}
+body{background:#1e2130;color:#e2e8f0;min-height:100vh}
+.hdr{background:linear-gradient(135deg,#2c3e6b,#1a2a4a);border-bottom:3px solid #F8CA00;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.htitle{color:#F8CA00;font-size:20px;font-weight:800}
+.hsub{color:#cbd5e1;font-size:11px;margin-top:2px}
+.live{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;color:#4ade80;background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.3);padding:4px 12px;border-radius:20px}
+.ld{width:6px;height:6px;border-radius:50%;background:#4ade80;animation:lp 1.5s infinite;display:inline-block}
+@keyframes lp{0%{box-shadow:0 0 0 0 rgba(74,222,128,.7)}70%{box-shadow:0 0 0 5px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}
+
+/* FILTER BAR */
+.fbar{background:#2a2f45;border-bottom:1px solid #3a4060;padding:10px 24px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.fg{display:flex;flex-direction:column;gap:3px}
+.fl{color:#94a3b8;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+select{background:#1e2130;border:1px solid #3a4060;color:#e2e8f0;font-size:12px;padding:5px 26px 5px 9px;border-radius:6px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 7px center;min-width:130px}
+select:focus{outline:none;border-color:#F8CA00}
+.frec{margin-left:auto;font-size:11px;color:#94a3b8;align-self:center;white-space:nowrap}
+.frec b{color:#F8CA00;font-family:monospace}
+.main{padding:14px 24px 48px}
+
+/* KPI */
+.krow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+.kc{background:#2a2f45;border:1px solid #3a4060;border-radius:12px;padding:16px 20px;text-align:center}
+.kl{color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.kv{font-size:34px;font-weight:800;margin-top:5px}
+
+/* OBSERVATION BOX */
+.obs{background:linear-gradient(135deg,rgba(248,202,0,.08),rgba(59,130,246,.06));border:1px solid rgba(248,202,0,.25);border-radius:10px;padding:14px 18px;margin-bottom:14px}
+.obs-title{color:#F8CA00;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.obs-body{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.obs-item{background:rgba(255,255,255,.04);border-radius:8px;padding:10px 12px;border-left:3px solid var(--oc)}
+.obs-item h4{font-size:11px;font-weight:700;color:var(--oc);margin-bottom:4px}
+.obs-item p{font-size:11px;color:#94a3b8;line-height:1.5}
+
+/* SECTION */
+.sec{color:#F8CA00;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;border-left:3px solid #F8CA00;padding-left:10px;margin:16px 0 8px}
+
+/* CARD */
+.card{background:#2a2f45;border:1px solid #3a4060;border-radius:10px;overflow:hidden;margin-bottom:12px}
+
+/* TABLE */
+.tw{overflow-x:auto}
+.tw::-webkit-scrollbar{height:4px}
+.tw::-webkit-scrollbar-thumb{background:#3a4060;border-radius:2px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:#1e2130;color:#94a3b8;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:8px 12px;border-bottom:1px solid #3a4060;white-space:nowrap;text-align:center}
+thead th:first-child{text-align:left;min-width:155px;position:sticky;left:0;background:#1e2130;z-index:2}
+thead th:nth-child(2){text-align:left;min-width:65px}
+thead th.ov{background:rgba(248,202,0,.1);color:#F8CA00}
+thead th.tgt{background:rgba(74,222,128,.08);color:#4ade80}
+tbody tr{border-bottom:1px solid rgba(255,255,255,.04)}
+tbody tr:hover{background:rgba(255,255,255,.03)}
+tbody td{padding:7px 12px;text-align:center;font-size:12px}
+tbody td:first-child{text-align:left;font-weight:600;color:#e2e8f0;position:sticky;left:0;background:#2a2f45;z-index:1}
+tbody tr:hover td:first-child{background:#323754}
+tbody td:nth-child(2){text-align:left;font-size:11px;color:#94a3b8}
+tbody td.ov{background:rgba(248,202,0,.05);font-weight:700}
+tbody td.tgt{background:rgba(74,222,128,.05);font-size:10px;color:#4ade80}
+.sep td{background:#1a1e2e!important;padding:1px!important}
+
+/* REASONS */
+.reasons-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.reason-card{background:#2a2f45;border:1px solid #3a4060;border-radius:10px;padding:14px 16px}
+.reason-card h3{font-size:10px;font-weight:700;color:#F8CA00;text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px}
+.ritem{margin-bottom:8px}
+.rheader{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.rname{font-size:11px;color:#e2e8f0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px}
+.rpct{font-size:10px;font-weight:700;color:#F8CA00;font-family:monospace;white-space:nowrap}
+.rbw{height:3px;background:rgba(255,255,255,.06);border-radius:2px}
+.rb{height:100%;background:#F8CA00;border-radius:2px;transition:width .5s}
+
+/* TABS */
+.tabs{display:flex;gap:4px;padding:10px 14px 0}
+.tab{background:transparent;border:1px solid #3a4060;color:#94a3b8;font-size:11px;font-weight:600;padding:5px 14px;border-radius:6px 6px 0 0;cursor:pointer;transition:all .15s}
+.tab.active{background:#F8CA00;color:#1a1a1a;border-color:#F8CA00}
+
+.footer{text-align:center;color:#64748b;font-size:10px;padding:14px;border-top:1px solid #2a2f45;margin-top:4px}
+
+/* REASON FILTER BAR */
+.rfbar{background:#1e2130;border:1px solid #3a4060;border-radius:10px;padding:10px 14px;
+  margin-bottom:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.rtbl-wrap{overflow-x:auto;max-height:420px;overflow-y:auto}
+.rtbl-wrap::-webkit-scrollbar{width:3px;height:3px}
+.rtbl-wrap::-webkit-scrollbar-thumb{background:#3a4060;border-radius:2px}
+
+/* TREND TABLE */
+.trend-badge{display:inline-flex;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.drop-high{background:rgba(239,68,68,.15);color:#ef4444}
+.drop-med{background:rgba(245,166,35,.15);color:#f5a623}
+.drop-low{background:rgba(248,202,0,.15);color:#F8CA00}
+.mini-spark{display:flex;align-items:flex-end;gap:2px;height:28px}
+.spark-bar{width:8px;border-radius:2px 2px 0 0;min-height:2px;background:#4f8ef7;transition:height .3s}
+/* CHART CONTAINER */
+.chart-card{background:#2a2f45;border:1px solid #3a4060;border-radius:10px;padding:16px 18px;margin-bottom:12px}
+.chart-card h3{font-size:10px;font-weight:700;color:#F8CA00;text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px}
+
+/* Sticky first 2 columns in site table */
+#sBody tr:hover td:nth-child(1),
+#sBody tr:hover td:nth-child(2){background:#323754!important;}
+#smpBody tr:hover td:nth-child(1),
+#smpBody tr:hover td:nth-child(2){background:#323754!important;}
+tbody td {padding:5px 6px;}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <div class="htitle">📦 Resealing Conversion Dashboard — Pan India</div>
+    <div class="hsub">Flipkart FC · RTO/RVP Resealing Conversion Tracker · <span id="recLbl">1,27,871</span> records · Target: &gt;90%</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div class="live"><div class="ld"></div>LIVE</div>
+    <div style="font-size:10px;color:#94a3b8" id="clock"></div>
+  </div>
+</div>
+
+<!-- FILTER BAR -->
+<div class="fbar">
+  <div class="fg"><div class="fl">Zone</div>
+    <select id="fZone" onchange="render()"><option value="">All Zones</option><option>East</option><option>North</option><option>South</option><option>West</option></select>
+  </div>
+  <div class="fg"><div class="fl">RC / Site</div>
+    <select id="fRC" onchange="render()"><option value="">All Sites</option></select>
+  </div>
+  <div class="fg"><div class="fl">Month</div>
+    <select id="fMonth" onchange="render()"><option value="">All Months</option></select>
+  </div>
+  <div class="fg"><div class="fl">Week</div>
+    <select id="fWeek" onchange="render()"><option value="">All Weeks</option></select>
+  </div>
+  <div class="fg"><div class="fl">Vertical</div>
+    <select id="fVert" onchange="render()"><option value="">All Verticals</option></select>
+  </div>
+  <div class="fg"><div class="fl">Type</div>
+    <select id="fType" onchange="render()"><option value="">RTO + RVP</option><option value="rto">RTO only</option><option value="rvp">RVP only</option></select>
+  </div>
+  <div class="frec">Showing <b id="recCount">1,27,871</b> records</div>
+</div>
+
+<div class="main">
+
+  <!-- KPI -->
+  <div class="krow">
+    <div class="kc"><div class="kl">Overall Resealing Conversion</div><div class="kv" id="kOv">—</div></div>
+    <div class="kc"><div class="kl">RTO Resealing Conversion</div><div class="kv" id="kRTO">—</div></div>
+    <div class="kc"><div class="kl">RVP Resealing Conversion</div><div class="kv" id="kRVP">—</div></div>
+  </div>
+
+  <!-- OBSERVATION BOX -->
+  <div class="obs">
+    <div class="obs-title">📋 Key Observations &amp; Target Analysis</div>
+    <div class="obs-body" id="obsBody"></div>
+  </div>
+
+  <!-- MONTH WISE -->
+  <div class="sec">📅 Conversion — Month Wise</div>
+  <div class="card"><div class="tw"><table><thead><tr id="mHead"></tr></thead><tbody id="mBody"></tbody></table></div></div>
+
+  <!-- WEEK WISE -->
+  <div class="sec">📊 Conversion — Last 7 Weeks</div>
+  <div class="card"><div class="tw"><table><thead><tr id="wHead"></tr></thead><tbody id="wBody"></tbody></table></div></div>
+
+  <!-- FAILURE REASONS - 3 PANELS -->
+  <div class="sec">🔍 Failure Reason Analysis — QA Remark (Excl. No Issue)</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+    <div class="reason-card">
+      <h3 style="color:#e2e8f0">📊 Overall (RTO + RVP)</h3>
+      <div id="reasonOverall"></div>
+    </div>
+    <div class="reason-card">
+      <h3 style="color:#4f8ef7">🔵 RTO Only</h3>
+      <div id="reasonRTO"></div>
+    </div>
+    <div class="reason-card">
+      <h3 style="color:#36d9a4">🟢 RVP Only</h3>
+      <div id="reasonRVP"></div>
+    </div>
+  </div>
+
+
+  <!-- SITE TABLE -->
+  <div class="sec">🏭 Site-wise Resealing Conversion</div>
+  <div style="display:flex;gap:4px;margin-bottom:0">
+    <button class="tab active" onclick="setTab('overall',this)">📊 Overall</button>
+    <button class="tab" onclick="setTab('rto',this)">🔵 RTO</button>
+    <button class="tab" onclick="setTab('rvp',this)">🟢 RVP</button>
+  </div>
+  <div class="card"><div class="tw" style="overflow-x:auto"><table style="min-width:max-content"><thead><tr id="sHead"></tr></thead><tbody id="sBody"></tbody></table></div></div>
+
+</div>
+
+
+    <!-- SAMPLE SIZE TABLE — inserted after site-wise conversion -->
+  <div class="sec">🔬 Sample Size Monitor — Weekly Audit Count per Site (Ov / RTO / RVP)</div>
+  <div style="background:#2a2f45;border:1px solid #3a4060;border-radius:10px;overflow:hidden;margin-bottom:14px">
+    <div style="padding:7px 14px;border-bottom:1px solid #3a4060;display:flex;gap:16px;flex-wrap:wrap;font-size:10px;color:#94a3b8;align-items:center">
+      <span style="font-weight:600;color:#f0f2f8">Color guide:</span>
+      <span style="color:#22c55e">● ≥200 (healthy)</span>
+      <span style="color:#f5a623">● 100–199 (watch)</span>
+      <span style="color:#ef4444">● &lt;100 (low — not filling data)</span>
+      <span style="color:#ef4444">🔴 = dropped ≥50% vs prev week</span>
+      <span style="color:#5a6278;margin-left:4px">Each cell shows: Overall / RTO / RVP</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr id="smpHead" style="background:#1e2130"></tr></thead>
+        <tbody id="smpBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SITE FAILURE REASON TABLE -->
+  <div class="sec">📋 Site-level Failure Reason Analysis (QA Remark)</div>
+
+  <!-- Reason filters -->
+  <div class="rfbar" style="padding:8px 14px;gap:8px">
+    <div class="fg"><div class="fl">Site</div>
+      <select id="rSite" onchange="renderReasonTable();renderReasonCharts()"><option value="">All Sites</option></select>
+    </div>
+    <div class="fg"><div class="fl">Month</div>
+      <select id="rMonth" onchange="renderReasonTable();renderReasonCharts()"><option value="">All Months</option></select>
+    </div>
+    <div class="fg"><div class="fl">Week</div>
+      <select id="rWeek" onchange="renderReasonTable();renderReasonCharts()"><option value="">All Weeks</option></select>
+    </div>
+    <div class="fg"><div class="fl">Vertical 1</div>
+      <select id="rVert" onchange="renderReasonTable();renderReasonCharts()"><option value="">All Verticals</option></select>
+    </div>
+    <div class="frec">Total failures: <b id="rCount">—</b></div>
+  </div>
+
+  <!-- 3 panels: Overall / RTO / RVP -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+    <div class="reason-card">
+      <h3 id="rPanelTitle1" style="color:#e2e8f0">All Sites — Overall</h3>
+      <div id="rPanelBody1"></div>
+    </div>
+    <div class="reason-card">
+      <h3 id="rPanelTitle2" style="color:#4f8ef7">All Sites — RTO Only</h3>
+      <div id="rPanelBody2"></div>
+    </div>
+    <div class="reason-card">
+      <h3 id="rPanelTitle3" style="color:#36d9a4">All Sites — RVP Only</h3>
+      <div id="rPanelBody3"></div>
+    </div>
+  </div>
+  <!-- Hidden tbody needed for JS compatibility -->
+  <tbody id="reasonBody" style="display:none"></tbody>
+  <tbody id="trendBody" style="display:none"></tbody>
+
+  <!-- FAILURE REASON BAR CHART - WEEK ON WEEK -->
+  <div class="sec">📊 Failure Reason Trend — Week on Week Contribution</div>
+  <div class="chart-card">
+    <h3>Top 6 Failure Reasons — Weekly Count (Wk 17 to 23, excl. No Issue)</h3>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;font-size:11px;color:#94a3b8" id="chartLegend"></div>
+    <div style="position:relative;height:300px">
+      <canvas id="reasonTrendChart" role="img" aria-label="Weekly failure reason trend bar chart"></canvas>
+    </div>
+  </div>
+
+  <!-- REASON STACKED % CHART -->
+  <div class="chart-card">
+    <h3>Failure Reason % Contribution per Week — Stacked (Wk 17 to 23)</h3>
+    <div style="position:relative;height:260px">
+      <canvas id="reasonPctChart" role="img" aria-label="Weekly failure reason percentage stacked chart"></canvas>
+    </div>
+  </div>
+
+
+<div class="footer">Resealing Conversion % = Pass ÷ (Pass + Fail) × 100 · Target &gt;90% · resealing-dashboard-fk.streamlit.app · Wks 1–23 · 2026</div>
+
+<script>
+DATABLOCK
+let sTab='overall', trendChart=null, pctChart=null;
+const REASON_COLORS=['#ef4444','#f5a623','#F8CA00','#4ade80','#4f8ef7','#a78bfa'];
+const pct=(p,t)=>t>0?(p/t*100).toFixed(2)+'%':'—';
+const conv=(p,t)=>t>0?Math.round(p/t*1000)/10:0;
+const fmtN=n=>n.toLocaleString('en-IN');
+function cc(v){if(v==='—')return'color:#4a5568';const n=parseFloat(v);if(isNaN(n))return'color:#4a5568';if(n>=90)return'color:#22c55e;font-weight:700';if(n>=85)return'color:#4ade80;font-weight:700';if(n>=80)return'color:#F8CA00;font-weight:700';return'color:#ef4444;font-weight:700';}
+function kc(v){return v>=90?'#22c55e':v>=85?'#4ade80':v>=80?'#F8CA00':'#ef4444';}
+setInterval(()=>{const c=document.getElementById('clock');if(c)c.textContent=new Date().toLocaleString('en-IN');},1000);
+
+function populateFilters(){
+  const ms=document.getElementById('fMonth'); ms.innerHTML='<option value="">All Months</option>';
+  MLABELS.forEach((l,i)=>ms.add(new Option(l,MONTHS[i])));
+  const ws=document.getElementById('fWeek'); ws.innerHTML='<option value="">All Weeks</option>';
+  ALL_WKS.forEach(w=>ws.add(new Option('Wk '+w,w)));
+  const vs=document.getElementById('fVert'); vs.innerHTML='<option value="">All Verticals</option>';
+  ALL_VERTS.forEach(v=>vs.add(new Option(v,v)));
+  populateRC();
+  populateReasonFilters();
+}
+function populateRC(){
+  const zone=document.getElementById('fZone').value;
+  const sel=document.getElementById('fRC'); const cur=sel.value;
+  sel.innerHTML='<option value="">All Sites</option>';
+  [...RC_DATA].filter(r=>!zone||r.zone===zone).sort((a,b)=>a.rc.localeCompare(b.rc))
+    .forEach(r=>{const o=new Option(r.rc,r.rc);if(r.rc===cur)o.selected=true;sel.add(o);});
+}
+function populateReasonFilters(){
+  const rs=document.getElementById('rSite'); rs.innerHTML='<option value="">All Sites</option>';
+  [...RC_DATA].sort((a,b)=>a.rc.localeCompare(b.rc)).forEach(r=>rs.add(new Option(r.rc,r.rc)));
+  const rm=document.getElementById('rMonth'); rm.innerHTML='<option value="">All Months</option>';
+  MLABELS.forEach((l,i)=>rm.add(new Option(l,MONTHS[i])));
+  const rw=document.getElementById('rWeek'); rw.innerHTML='<option value="">All Weeks</option>';
+  ALL_WKS.forEach(w=>rw.add(new Option('Wk '+w,w)));
+  const rv=document.getElementById('rVert'); rv.innerHTML='<option value="">All Verticals</option>';
+  ALL_VERTS.forEach(v=>rv.add(new Option(v,v)));
+}
+
+function getFiltered(){
+  const zone=document.getElementById('fZone').value;
+  const rc=document.getElementById('fRC').value;
+  const type=document.getElementById('fType').value||'overall';
+  let d=[...RC_DATA];
+  if(zone) d=d.filter(r=>r.zone===zone);
+  if(rc)   d=d.filter(r=>r.rc===rc);
+  return {data:d,type};
+}
+
+function render(){
+  populateRC();
+  const {data,type}=getFiltered();
+  const fWeek=parseInt(document.getElementById('fWeek').value)||0;
+  const fMth=document.getElementById('fMonth').value;
+  let tot=0; data.forEach(r=>ALL_WKS.forEach(w=>{const v=r.wk.overall?.[w];if(v)tot+=v[0];}));
+  document.getElementById('recCount').textContent=fmtN(tot||127871);
+  const sum=(src)=>Object.values(src).reduce((a,v)=>[a[0]+v[0],a[1]+v[1]],[0,0]);
+  const [oT,oP]=sum(WK_OV), [rT,rP]=sum(WK_RTO), [vT,vP]=sum(WK_RVP);
+  const oC=conv(oP,oT), rC=conv(rP,rT), vC=conv(vP,vT);
+  const setel=(id,v)=>{const e=document.getElementById(id);if(e){e.textContent=v+'%';e.style.color=kc(v);}};
+  setel('kOv',oC); setel('kRTO',rC); setel('kRVP',vC);
+  renderObs(oC,rC,vC);
+  renderMonthTable(data,type,fMth);
+  renderWeekTable(data,type,fWeek);
+  renderReasons(data);
+  renderSiteTable(data,sTab);
+}
+
+function renderObs(oC,rC,vC){
+  const gap=(90-oC).toFixed(1);
+  const w23=WK_OV[23]?conv(WK_OV[23][1],WK_OV[23][0]):0;
+  const w17=WK_OV[17]?conv(WK_OV[17][1],WK_OV[17][0]):0;
+  const trend=w23-w17;
+  const top=TOP6_REASONS[0]||'Physical Product Damages';
+  const items=[
+    {c:'#F8CA00',t:'📊 vs Target (>90%)',
+     b:oC>=90?`✅ Target achieved! Overall ${oC}%. Both types ${rC>=90&&vC>=90?'above':'near'} 90%.`
+            :`⚠️ ${gap}% gap to 90% target. RTO: ${rC}%, RVP: ${vC}%. Focus on ${rC<vC?'RTO':'RVP'}.`},
+    {c:'#ef4444',t:'🔍 Top Fail Drivers',
+     b:`#1: ${(top||'').substring(0,45)}. This + packaging damage = ~70% of all failures. Priority action area.`},
+    {c:'#4ade80',t:'📈 Wk17→23 Trend',
+     b:trend>=0?`✅ +${Math.abs(trend).toFixed(1)}% improvement. Wk23: ${w23}%. Keep momentum going.`
+              :`⚠️ ${Math.abs(trend).toFixed(1)}% decline. Wk23: ${w23}%. Review QA process urgently.`},
+  ];
+  const el=document.getElementById('obsBody');
+  if(el) el.innerHTML=items.map(i=>`<div class="obs-item" style="--oc:${i.c}"><h4>${i.t}</h4><p>${i.b}</p></div>`).join('');
+}
+
+function renderMonthTable(data,type,fMth){
+  const months=MONTHS.filter(m=>{let t=0;RC_DATA.forEach(r=>{const v=r.mth.overall?.[m];if(v)t+=v[0];});return t>0;});
+  const mlbls=months.map(m=>MLABELS[MONTHS.indexOf(m)]);
+  const mh=document.getElementById('mHead'); const mb=document.getElementById('mBody');
+  if(!mh||!mb) return;
+  mh.innerHTML='<th>Metric</th>'+mlbls.map((l,i)=>`<th${fMth===months[i]?' style="background:rgba(248,202,0,.15)"':''}>${l}</th>`).join('')+'<th class="ov">Overall</th><th class="tgt">Target</th>';
+  const rows=[{l:'Overall Conversion %',k:'overall'},{l:'RTO Conversion %',k:'rto'},{l:'RVP Conversion %',k:'rvp'}];
+  let tbl='';
+  rows.forEach((r,i)=>{
+    if(i>0) tbl+=`<tr class="sep"><td colspan="${months.length+3}"></td></tr>`;
+    let tT=0,tP=0;
+    const cells=months.map(m=>{let t=0,p=0;data.forEach(d=>{const v=d.mth[r.k]?.[m];if(v){t+=v[0];p+=v[1];}});tT+=t;tP+=p;const v=pct(p,t);return`<td style="${cc(v)}">${v}</td>`;}).join('');
+    const ov=pct(tP,tT);
+    tbl+=`<tr><td>${r.l}</td>${cells}<td class="ov" style="${cc(ov)}">${ov}</td><td class="tgt">>90%</td></tr>`;
+  });
+  mb.innerHTML=tbl;
+}
+
+function renderWeekTable(data,type,fWeek){
+  const wks=LAST7WKS;
+  const wh=document.getElementById('wHead'); const wb=document.getElementById('wBody');
+  if(!wh||!wb) return;
+  wh.innerHTML='<th>Metric</th>'+wks.map(w=>`<th${fWeek===w?' style="background:rgba(248,202,0,.15)"':''}>Wk ${w}</th>`).join('')+'<th class="ov">Overall</th><th class="tgt">Target</th>';
+  const rows=[{l:'Overall Conversion %',k:'overall'},{l:'RTO Conversion %',k:'rto'},{l:'RVP Conversion %',k:'rvp'}];
+  let tbl='';
+  rows.forEach((r,i)=>{
+    if(i>0) tbl+=`<tr class="sep"><td colspan="${wks.length+3}"></td></tr>`;
+    let tT=0,tP=0;
+    const cells=wks.map(w=>{let t=0,p=0;data.forEach(d=>{const v=d.wk[r.k]?.[w];if(v){t+=v[0];p+=v[1];}});tT+=t;tP+=p;const v=pct(p,t);return`<td style="${cc(v)}">${v}</td>`;}).join('');
+    const ov=pct(tP,tT);
+    tbl+=`<tr><td>${r.l}</td>${cells}<td class="ov" style="${cc(ov)}">${ov}</td><td class="tgt">>90%</td></tr>`;
+  });
+  wb.innerHTML=tbl;
+}
+
+function renderReasons(data){
+  function buildList(reasons,elId,clr){
+    const el=document.getElementById(elId); if(!el) return;
+    const tot=Object.values(reasons).reduce((s,v)=>s+v,0);
+    const mx=Math.max(...Object.values(reasons));
+    el.innerHTML=Object.entries(reasons).slice(0,8).map(([r,cnt])=>{
+      const p=(cnt/tot*100).toFixed(1);
+      return`<div class="ritem"><div class="rheader"><span class="rname" title="${r}">${r.length>45?r.slice(0,43)+'…':r}</span><span class="rpct">${fmtN(cnt)} (${p}%)</span></div><div class="rbw"><div class="rb" style="width:${Math.round(cnt/mx*100)}%;background:${clr}"></div></div></div>`;
+    }).join('');
+  }
+  buildList(REASONS_OVERALL,'reasonOverall','#F8CA00');
+  buildList(REASONS_RTO,'reasonRTO','#4f8ef7');
+  buildList(REASONS_RVP,'reasonRVP','#36d9a4');
+}
+
+function setTab(tab,el){
+  sTab=tab;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  const {data}=getFiltered();
+  renderSiteTable(data,tab);
+}
+
+function renderSiteTable(data,typ){
+  var wks    = LAST7WKS;
+  var months = MONTHS.filter(function(m){
+    var t=0; RC_DATA.forEach(function(r){var v=r.mth.overall?.[m];if(v)t+=v[0];}); return t>0;
+  });
+  var mlbls = months.map(function(m){return MLABELS[MONTHS.indexOf(m)];});
+  var sh=document.getElementById('sHead'), sb=document.getElementById('sBody');
+  if(!sh||!sb) return;
+
+  sh.innerHTML=
+    '<th style="text-align:left;width:150px;min-width:150px;position:sticky;left:0;background:#1e2130;z-index:3;white-space:nowrap">Site</th>'+
+    '<th style="text-align:left;width:58px;min-width:58px;position:sticky;left:150px;background:#1e2130;z-index:3">Zone</th>'+
+    mlbls.map(function(l){return '<th style="width:58px;min-width:58px;white-space:nowrap;font-size:10px">'+l+'</th>';}).join('')+
+    wks.map(function(w){return '<th style="width:44px;min-width:44px;font-size:10px">Wk'+w+'</th>';}).join('')+
+    '<th class="ov" style="width:60px;min-width:60px">Overall</th>'+
+    '<th class="tgt" style="width:46px;min-width:46px">Gap</th>'+
+    '<th style="width:260px;min-width:260px;text-align:left;color:#F8CA00">Observation</th>';
+
+  var tbl=''; var pz='';
+  var PRIORITY_ORDER=['Frk_bts','Haringhata NLFC 01','Malur_bts','Patna FC 02',
+    'Bhiwandi BTS','Hyderabad_medchal_01','Raipur 3pl 01','Ahm_Kheda',
+    'Guwahati_BTS_01','Nagpur_01','Lucknow FC 02','Bhuneshwar BTS 01','Sanpka'];
+  var sorted=[...data].sort(function(a,b){
+    var ai=PRIORITY_ORDER.indexOf(a.rc), bi=PRIORITY_ORDER.indexOf(b.rc);
+    if(ai>=0&&bi>=0) return ai-bi;          // both priority: keep order
+    if(ai>=0) return -1;                     // a priority, b not: a first
+    if(bi>=0) return 1;                      // b priority, a not: b first
+    return a.zone.localeCompare(b.zone)||a.rc.localeCompare(b.rc); // rest: zone then alpha
+  });
+
+  sorted.forEach(function(r){
+    if(r.zone!==pz&&pz!==''&&PRIORITY_ORDER.indexOf(r.rc)<0&&PRIORITY_ORDER.indexOf(r.rc)<0) tbl+='<tr class="sep"><td colspan="'+(months.length+wks.length+6)+'"></td></tr>';
+    pz=r.zone;
+    var tT=0,tP=0;
+
+    var mc=months.map(function(m){
+      var v=r.mth[typ]?.[m];
+      if(!v) return '<td style="color:#4a5568;font-size:10px;padding:5px 2px;text-align:center">—</td>';
+      tT+=v[0]; tP+=v[1];
+      var pv=pct(v[1],v[0]);
+      return '<td style="'+cc(pv)+';font-size:10px;padding:5px 2px;text-align:center">'+pv+'</td>';
+    }).join('');
+
+    var wc=wks.map(function(w){
+      var v=r.wk[typ]?.[w];
+      if(!v) return '<td style="color:#4a5568;font-size:10px;padding:5px 2px;text-align:center">—</td>';
+      tT+=v[0]; tP+=v[1];
+      var pv=pct(v[1],v[0]);
+      return '<td style="'+cc(pv)+';font-size:10px;padding:5px 2px;text-align:center">'+pv+'</td>';
+    }).join('');
+
+    var ov  = pct(tP,tT);
+    var gap = tT>0?(90-tP/tT*100).toFixed(1):null;
+    var gt  = gap!==null?(parseFloat(gap)<=0?'✅':gap+'%'):'—';
+    var obs = buildSiteObs(r);
+
+    tbl+='<tr>'+
+      '<td style="font-size:11px;font-weight:600;padding:5px 8px;position:sticky;left:0;background:#2a2f45;z-index:2;white-space:nowrap;width:150px">'+r.rc+'</td>'+
+      '<td style="font-size:10px;color:#94a3b8;padding:5px 6px;position:sticky;left:150px;background:#2a2f45;z-index:2;width:58px">'+r.zone+'</td>'+
+      mc+wc+
+      '<td class="ov" style="'+cc(ov)+';font-size:11px;padding:5px 4px;text-align:center;font-weight:700">'+ov+'</td>'+
+      '<td style="font-size:10px;padding:5px 4px;text-align:center;'+(parseFloat(gap)<=0?'color:#22c55e':'color:#f5a623')+'">'+gt+'</td>'+
+      '<td style="font-size:10px;line-height:1.6;padding:5px 8px;width:260px;vertical-align:top">'+obs+'</td>'+
+    '</tr>';
+  });
+  sb.innerHTML=tbl||'<tr><td colspan="20" style="text-align:center;color:#94a3b8;padding:12px">No data</td></tr>';
+}
+
+
+function buildSiteObs(r){
+  var obs=[];
+  var wks=LAST7WKS;
+
+  // Helper: get conversion for a type over last N weeks
+  function getWkConv(typ,wList){
+    var t=0,p=0;
+    wList.forEach(function(w){var v=r.wk[typ]?.[w];if(v){t+=v[0];p+=v[1];}});
+    return t>0?Math.round(p/t*1000)/10:null;
+  }
+  function getWkSample(typ,wList){
+    var t=0; wList.forEach(function(w){var v=r.wk[typ]?.[w];if(v)t+=v[0];}); return t;
+  }
+
+  var early=wks.slice(0,3), late=wks.slice(4);
+
+  // Overall conversion trend
+  var ovE=getWkConv('overall',early), ovL=getWkConv('overall',late);
+  var rtoE=getWkConv('rto',early),    rtoL=getWkConv('rto',late);
+  var rvpE=getWkConv('rvp',early),    rvpL=getWkConv('rvp',late);
+
+  if(ovE!==null&&ovL!==null){
+    var drop=Math.round((ovE-ovL)*10)/10;
+    if(drop>10)      obs.push('<span style="color:#ef4444">🔴 Conv dropped '+drop+'% ('+ovE+'→'+ovL+'%)</span>');
+    else if(drop>5)  obs.push('<span style="color:#f5a623">🟠 Conv down '+drop+'% ('+ovE+'→'+ovL+'%)</span>');
+    else if(drop<-3) obs.push('<span style="color:#22c55e">✅ Conv improved '+(Math.abs(drop))+'%</span>');
+  }
+  if(rtoE!==null&&rtoL!==null){
+    var rdrop=Math.round((rtoE-rtoL)*10)/10;
+    if(rdrop>8) obs.push('<span style="color:#ef4444">🔴 RTO ↓'+rdrop+'% ('+rtoE+'→'+rtoL+'%)</span>');
+    else if(rdrop>4) obs.push('<span style="color:#f5a623">🟠 RTO ↓'+rdrop+'%</span>');
+  }
+  if(rvpE!==null&&rvpL!==null){
+    var vdrop=Math.round((rvpE-rvpL)*10)/10;
+    if(vdrop>8) obs.push('<span style="color:#ef4444">🔴 RVP ↓'+vdrop+'% ('+rvpE+'→'+rvpL+'%)</span>');
+    else if(vdrop>4) obs.push('<span style="color:#f5a623">🟠 RVP ↓'+vdrop+'%</span>');
+  }
+
+  // Sample drop check: last 2 weeks
+  var lastWk=wks[wks.length-1], prevWk=wks[wks.length-2];
+  ['overall','rto','rvp'].forEach(function(typ){
+    var lv=r.wk[typ]?.[lastWk]?r.wk[typ][lastWk][0]:0;
+    var pv=r.wk[typ]?.[prevWk]?r.wk[typ][prevWk][0]:0;
+    var lbl=typ==='overall'?'Overall':typ==='rto'?'RTO':'RVP';
+    if(lv<100&&lv>0) obs.push('<span style="color:#ef4444">⚠️ '+lbl+' Wk23 sample='+lv+' (low)</span>');
+    else if(pv>0&&lv===0) obs.push('<span style="color:#ef4444">⚠️ '+lbl+' no data Wk23</span>');
+    else if(pv>50&&lv>0&&lv/pv<0.5) obs.push('<span style="color:#ef4444">⚠️ '+lbl+' sample dropped '+(100-Math.round(lv/pv*100))+'% ('+pv+'→'+lv+')</span>');
+  });
+
+  if(obs.length===0){
+    var ovCurr=getWkConv('overall',[wks[wks.length-1]]);
+    if(ovCurr!==null&&ovCurr>=90) return '<span style="color:#22c55e;font-size:10px">✅ On track — Conv '+ovCurr+'% (≥90%)</span>';
+    return '<span style="color:#94a3b8;font-size:10px">No major issues</span>';
+  }
+  return obs.join('<br>');
+}
+
+
+function renderReasonTable(){
+  var fSite  = document.getElementById('rSite').value;
+  var fMonth = document.getElementById('rMonth').value;
+  var fWeek  = parseInt(document.getElementById('rWeek').value)||0;
+  var fVert  = document.getElementById('rVert').value;
+  var zone   = document.getElementById('fZone').value;
+
+  // Filter sites
+  var sites = REASON_DATA.slice();
+  if(fSite)  sites = sites.filter(function(s){return s.rc===fSite;});
+  else if(zone) sites = sites.filter(function(s){
+    var r=RC_DATA.find(function(x){return x.rc===s.rc;});
+    return r&&r.zone===zone;
+  });
+
+  // Aggregate by reason, split by type
+  var agg_ov={}, agg_rto={}, agg_rvp={};
+  var tot_ov=0, tot_rto=0, tot_rvp=0;
+
+  sites.forEach(function(s){
+    s.d.forEach(function(e){
+      if(fMonth && e.m!==fMonth) return;
+      if(fWeek  && e.w!==fWeek)  return;
+      if(fVert  && e.v!==fVert)  return;
+      var r=e.r;
+      // Overall
+      agg_ov[r]=(agg_ov[r]||0)+e.c; tot_ov+=e.c;
+      // RTO / RVP
+      if(e.t==='RTO'){ agg_rto[r]=(agg_rto[r]||0)+e.c; tot_rto+=e.c; }
+      else            { agg_rvp[r]=(agg_rvp[r]||0)+e.c; tot_rvp+=e.c; }
+    });
+  });
+
+  var rce=document.getElementById('rCount');
+  if(rce) rce.textContent=fmtN(tot_ov);
+
+  function buildPanel(agg, tot, clr){
+    if(!tot) return '<p style="color:#4a5568;font-size:12px;padding:8px 0">No data</p>';
+    var entries=Object.entries(agg).sort(function(a,b){return b[1]-a[1];}).slice(0,10);
+    var mx=entries[0]?entries[0][1]:1;
+    return entries.map(function(e){
+      var r=e[0], cnt=e[1];
+      var p=(cnt/tot*100).toFixed(1);
+      var bw=Math.round(cnt/mx*100);
+      return '<div class="ritem">'+
+        '<div class="rheader">'+
+          '<span class="rname" title="'+r+'">'+(r.length>46?r.slice(0,44)+'…':r)+'</span>'+
+          '<span class="rpct">'+fmtN(cnt)+' ('+p+'%)</span>'+
+        '</div>'+
+        '<div class="rbw"><div class="rb" style="width:'+bw+'%;background:'+clr+'"></div></div>'+
+      '</div>';
+    }).join('');
+  }
+
+  var label = fSite ? fSite : (zone ? 'Zone: '+zone : 'All Sites');
+  var suffix = (fMonth?' · '+MLABELS[MONTHS.indexOf(fMonth)]:'')+(fWeek?' · Wk '+fWeek:'')+(fVert?' · '+fVert:'');
+
+  // Update panel titles
+  var t1=document.getElementById('rPanelTitle1');
+  var t2=document.getElementById('rPanelTitle2');
+  var t3=document.getElementById('rPanelTitle3');
+  if(t1) t1.textContent = label+' — Overall'+suffix;
+  if(t2) t2.textContent = label+' — RTO Only'+suffix;
+  if(t3) t3.textContent = label+' — RVP Only'+suffix;
+
+  var p1=document.getElementById('rPanelBody1');
+  var p2=document.getElementById('rPanelBody2');
+  var p3=document.getElementById('rPanelBody3');
+  if(p1) p1.innerHTML=buildPanel(agg_ov,tot_ov,'#F8CA00');
+  if(p2) p2.innerHTML=buildPanel(agg_rto,tot_rto,'#4f8ef7');
+  if(p3) p3.innerHTML=buildPanel(agg_rvp,tot_rvp,'#36d9a4');
+}
+
+
+function renderSampleTable(){
+  var sh=document.getElementById('smpHead');
+  var sb=document.getElementById('smpBody');
+  if(!sh||!sb) return;
+
+  var wks=LAST7WKS;
+  sh.innerHTML='<th style="text-align:left;position:sticky;left:0;background:#1e2130;z-index:3;min-width:140px">Site</th>'+
+    '<th style="text-align:left;position:sticky;left:140px;background:#1e2130;z-index:3;min-width:55px">Zone</th>'+
+    wks.map(function(w){return '<th>Wk '+w+'<br><span style="font-size:9px;color:#5a6278;font-weight:400">Ov/RTO/RVP</span></th>';}).join('')+
+    '<th class="ov">Wk23 Alert</th>';
+
+  var tbl=''; var pz='';
+  var sorted=[...RC_DATA].sort(function(a,b){return a.zone.localeCompare(b.zone)||a.rc.localeCompare(b.rc);});
+
+  sorted.forEach(function(r){
+    if(r.zone!==pz && pz!=='')
+      tbl+='<tr class="sep"><td colspan="'+(wks.length+3)+'"></td></tr>';
+    pz=r.zone;
+
+    // Build week cells
+    var prevOv=null, prevRto=null, prevRvp=null;
+    var alerts=[];
+
+    var wc=wks.map(function(w,wi){
+      var ov  = r.wk.overall?.[w]?r.wk.overall[w][0]:0;
+      var rto = r.wk.rto?.[w]?r.wk.rto[w][0]:0;
+      var rvp = r.wk.rvp?.[w]?r.wk.rvp[w][0]:0;
+
+      // Color coding for sample size
+      function smpColor(n){
+        if(n===0)  return 'color:#3a4060';
+        if(n<100)  return 'color:#ef4444;font-weight:700';
+        if(n<200)  return 'color:#f5a623';
+        return 'color:#4ade80';
+      }
+      function smpFlag(n,prev){
+        if(!prev||prev===0||n===0) return '';
+        var drop=(prev-n)/prev*100;
+        return drop>=50?'🔴':'';
+      }
+
+      var ovF  = smpFlag(ov, prevOv);
+      var rtoF = smpFlag(rto,prevRto);
+      var rvpF = smpFlag(rvp,prevRvp);
+
+      // Track alerts for last week (wk23)
+      if(wi===wks.length-1){
+        if(ov<100 && ov>0)   alerts.push('Low sample: Ov='+ov);
+        if(rto<100 && rto>0) alerts.push('RTO='+rto+'<100');
+        if(rvp<100 && rvp>0) alerts.push('RVP='+rvp+'<100');
+        if(ovF==='🔴')  alerts.push('Ov dropped 50%+');
+        if(rtoF==='🔴') alerts.push('RTO dropped 50%+');
+        if(rvpF==='🔴') alerts.push('RVP dropped 50%+');
+      }
+
+      prevOv=ov; prevRto=rto; prevRvp=rvp;
+
+      return '<td style="padding:5px 8px">'+
+        '<div style="font-size:10px;'+smpColor(ov)+'">'+ovF+(ov||'—')+'</div>'+
+        '<div style="font-size:10px;'+smpColor(rto)+';margin-top:1px">'+rtoF+(rto||'—')+'</div>'+
+        '<div style="font-size:10px;'+smpColor(rvp)+';margin-top:1px">'+rvpF+(rvp||'—')+'</div>'+
+      '</td>';
+    }).join('');
+
+    var alertCell='<td style="font-size:10px;max-width:180px">';
+    if(alerts.length===0){
+      alertCell+='<span style="color:#22c55e">✅ Normal</span>';
+    } else {
+      alertCell+=alerts.map(function(a){return '<div style="color:#ef4444">⚠️ '+a+'</div>';}).join('');
+    }
+    alertCell+='</td>';
+
+    tbl+='<tr>'+
+      '<td style="font-size:11px;font-weight:600;position:sticky;left:0;background:#2a2f45;z-index:2;white-space:nowrap;padding:5px 8px">'+r.rc+'</td>'+
+      '<td style="font-size:10px;color:#94a3b8;position:sticky;left:140px;background:#2a2f45;z-index:2;padding:5px 6px">'+r.zone+'</td>'+
+      wc+alertCell+
+    '</tr>';
+  });
+  sb.innerHTML=tbl||'<tr><td colspan="12" style="text-align:center;color:#94a3b8;padding:12px">No data</td></tr>';
+}
+
+
+function renderTrendTable(){
+  const tb=document.getElementById('trendBody'); if(!tb) return;
+  const rows=DECLINING.slice(0,25).map(d=>{
+    const dc=d.drop>15?'drop-high':d.drop>7?'drop-med':'drop-low';
+    const di=d.drop>15?'🔴':d.drop>7?'🟠':'🟡';
+    const vals=Object.values(d.wk_vals).filter(v=>v!==null&&v!==undefined);
+    const mx=vals.length?Math.max(...vals):100, mn=vals.length?Math.min(...vals):0;
+    const sp=TREND_WKS.map(w=>{
+      const v=d.wk_vals[w]!==undefined?d.wk_vals[w]:d.wk_vals[String(w)];
+      if(v===undefined||v===null) return'<div class="spark-bar" style="height:2px;background:#3a4060"></div>';
+      const h=mx>mn?Math.max(2,Math.round((v-mn)/(mx-mn)*26)):14;
+      const c=v>=90?'#22c55e':v>=85?'#4ade80':v>=80?'#F8CA00':'#ef4444';
+      return`<div class="spark-bar" title="Wk${w}:${v}%" style="height:${h}px;background:${c}"></div>`;
+    }).join('');
+    const tb2=d.type==='overall'?'<span style="color:#e2e8f0">Overall</span>':d.type==='RTO'?'<span style="color:#4f8ef7">RTO</span>':'<span style="color:#36d9a4">RVP</span>';
+    return`<tr><td>${d.rc}</td><td>${d.zone}</td><td>${tb2}</td><td style="color:#4ade80;font-family:monospace">${d.avg_early}%</td><td style="color:#ef4444;font-family:monospace">${d.avg_late}%</td><td><span class="trend-badge ${dc}">${di} -${d.drop}%</span></td><td><div class="mini-spark">${sp}</div></td><td style="font-size:11px;color:#94a3b8;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${d.top_reason}">${d.top_reason.substring(0,50)}</td><td style="font-size:11px;color:#94a3b8">${d.obs}</td></tr>`;
+  }).join('');
+  tb.innerHTML=rows||'<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:16px">No declining sites</td></tr>';
+}
+
+function renderReasonCharts(){
+  var BG='#2a2f45', GRID='rgba(255,255,255,0.05)', FONT='#94a3b8';
+  var labels=TREND_WKS.map(function(w){return 'Wk '+w;});
+
+  // ── Use site-level filters if set ─────────────────────────────────────────
+  var fSite  = document.getElementById('rSite').value;
+  var fMonth = document.getElementById('rMonth').value;
+  var fVert  = document.getElementById('rVert').value;
+  var fType  = document.getElementById('rType') ? document.getElementById('rType').value : '';
+  var zone   = document.getElementById('fZone').value;
+
+  var useReasons = TOP6_REASONS;
+  var useData    = CHART_DATA; // default: all sites global
+
+  // If site or zone filter applied, rebuild from REASON_DATA
+  if(fSite || zone){
+    var sites = REASON_DATA.slice();
+    if(fSite) sites = sites.filter(function(s){return s.rc===fSite;});
+    else if(zone) sites = sites.filter(function(s){
+      var r=RC_DATA.find(function(x){return x.rc===s.rc;}); return r&&r.zone===zone;
+    });
+
+    // Aggregate by reason per week
+    var wkR={};
+    TREND_WKS.forEach(function(w){wkR[w]={};});
+    sites.forEach(function(s){
+      s.d.forEach(function(e){
+        if(!TREND_WKS.includes(e.w)) return;
+        if(fVert && e.v!==fVert) return;
+        if(fType && e.t!==fType) return;
+        wkR[e.w][e.r]=(wkR[e.w][e.r]||0)+e.c;
+      });
+    });
+
+    // Get top 6 reasons across filtered data
+    var totals={};
+    TREND_WKS.forEach(function(w){
+      Object.entries(wkR[w]).forEach(function(kv){totals[kv[0]]=(totals[kv[0]]||0)+kv[1];});
+    });
+    useReasons = Object.entries(totals).sort(function(a,b){return b[1]-a[1];}).slice(0,6).map(function(e){return e[0];});
+    useData={};
+    useReasons.forEach(function(r){useData[r]=TREND_WKS.map(function(w){return wkR[w][r]||0;});});
+  }
+
+  // Chart title
+  var label = fSite?fSite:(zone?'Zone: '+zone:'All Sites');
+  var suffix = (fVert?' · '+fVert:'')+(fType?' · '+fType:'');
+  var c1title = document.querySelector('.chart-card h3');
+  if(c1title) c1title.innerHTML='Top 6 Failure Reasons — Weekly Count &nbsp;<span style="color:#94a3b8;font-weight:400;font-size:10px">'+label+suffix+' · Wk 17–23 · excl. No Issue</span>';
+
+  // Legend
+  var lg=document.getElementById('chartLegend');
+  if(lg) lg.innerHTML=useReasons.map(function(r,i){
+    return '<span style="display:flex;align-items:center;gap:4px;font-size:10px">'+
+      '<span style="width:10px;height:10px;border-radius:2px;background:'+REASON_COLORS[i%6]+';flex-shrink:0;display:inline-block"></span>'+
+      r.substring(0,32)+(r.length>32?'…':'')+
+    '</span>';
+  }).join('');
+
+  // ── GROUPED BAR CHART with % labels ──────────────────────────────────────
+  var c1=document.getElementById('reasonTrendChart');
+  if(c1){
+    if(trendChart) trendChart.destroy();
+
+    // Pre-compute weekly totals for % calculation
+    var wkTotals=TREND_WKS.map(function(_,wi){
+      return useReasons.reduce(function(s,r){return s+((useData[r]||[])[wi]||0);},0);
+    });
+
+    trendChart=new Chart(c1,{
+      type:'bar',
+      data:{
+        labels:labels,
+        datasets:useReasons.map(function(r,i){
+          return {
+            label:r.substring(0,30),
+            data:useData[r]||TREND_WKS.map(function(){return 0;}),
+            backgroundColor:REASON_COLORS[i%6]+'cc',
+            borderColor:REASON_COLORS[i%6],
+            borderWidth:1,
+            borderRadius:3,
+          };
+        })
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            callbacks:{
+              title:function(c){return 'Wk '+TREND_WKS[c[0].dataIndex];},
+              label:function(c){
+                var wi=c.dataIndex;
+                var tot=wkTotals[wi];
+                var p=tot>0?Math.round(c.raw/tot*1000)/10:0;
+                return '  '+c.dataset.label.substring(0,28)+': '+c.raw+' ('+p+'%)';
+              },
+              afterBody:function(c){
+                var wi=c[0].dataIndex;
+                return ['','Total failures: '+fmtN(wkTotals[wi])];
+              }
+            }
+          },
+          datalabels:{display:false}
+        },
+        scales:{
+          x:{ticks:{color:FONT,font:{size:11}},grid:{color:GRID}},
+          y:{ticks:{color:FONT,font:{size:10}},grid:{color:GRID},
+             title:{display:true,text:'Count',color:FONT,font:{size:10}}}
+        }
+      }
+    });
+  }
+
+  // ── STACKED % CHART ───────────────────────────────────────────────────────
+  var c2=document.getElementById('reasonPctChart');
+  if(c2){
+    if(pctChart) pctChart.destroy();
+    var wkT2=TREND_WKS.map(function(_,wi){
+      return useReasons.reduce(function(s,r){return s+((useData[r]||[])[wi]||0);},0);
+    });
+    pctChart=new Chart(c2,{
+      type:'bar',
+      data:{
+        labels:labels,
+        datasets:useReasons.map(function(r,i){
+          return {
+            label:r.substring(0,30),
+            data:(useData[r]||[]).map(function(v,wi){return wkT2[wi]>0?Math.round(v/wkT2[wi]*1000)/10:0;}),
+            backgroundColor:REASON_COLORS[i%6]+'cc',
+            borderColor:REASON_COLORS[i%6],
+            borderWidth:0
+          };
+        })
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{
+            display:true,
+            position:'bottom',
+            labels:{color:FONT,font:{size:10},boxWidth:10,padding:10,
+              generateLabels:function(chart){
+                return useReasons.map(function(r,i){
+                  return {text:r.length>35?r.substring(0,33)+'…':r, fillStyle:REASON_COLORS[i%6], strokeStyle:REASON_COLORS[i%6], lineWidth:0, hidden:false, index:i};
+                });
+              }
+            }
+          },
+          tooltip:{
+            callbacks:{
+              title:function(c){return 'Wk '+TREND_WKS[c[0].dataIndex];},
+              label:function(c){return '  '+c.dataset.label.substring(0,28)+': '+c.raw+'%';}
+            }
+          }
+        },
+        scales:{
+          x:{stacked:true,ticks:{color:FONT,font:{size:11}},grid:{color:GRID}},
+          y:{stacked:true,min:0,max:100,
+             ticks:{callback:function(v){return v+'%';},color:FONT,font:{size:10}},
+             grid:{color:GRID},
+             title:{display:true,text:'% Contribution',color:FONT,font:{size:10}}}
+        }
+      }
+    });
+  }
+}
+
+
+window.onload=initDashboard;
+// Filter change handler
+function onFilterChange(id){
+  if(['fZone','fRC','fMonth','fWeek','fVert','fType'].indexOf(id)>=0){populateRC();render();}
+}
+
+function initDashboard(){
+  populateFilters();
+  render();
+  renderReasonTable();
+  renderReasonCharts();
+  renderSampleTable();
+}
+window.onload = initDashboard;
+
+
+
+
+
+</script>
+</body>
+</html>
