@@ -104,7 +104,6 @@ def load_all_data():
 def process_data(df):
     # Rename columns
     cm = {'RC Name':'rc','Zone':'zone','Week':'week','Result':'result',
-          'RTO / RVP':'type','RTO / RVP Status':'type',
           'QA remark':'reason','Vertical 1':'vert'}
     df = df.rename(columns={k:v for k,v in cm.items() if k in df.columns})
     if 'result' not in df.columns: return None
@@ -113,11 +112,18 @@ def process_data(df):
     df = df[df['result'].isin(['pass','fail'])].copy()
     df['pass'] = df['result']=='pass'
 
-    if 'type' in df.columns:
-        df['type'] = df['type'].fillna('RTO').astype(str).str.strip().str.upper().str[:3]
-        df['type'] = df['type'].where(df['type'].isin(['RTO','RVP']),'RTO')
+    # Handle type column safely - avoid duplicate column issue
+    if 'RTO / RVP' in df.columns:
+        df['type'] = df['RTO / RVP'].fillna('RTO').astype(str).str.strip().str.upper().str[:3]
+    elif 'RTO / RVP Status' in df.columns:
+        df['type'] = df['RTO / RVP Status'].fillna('RTO').astype(str).str.strip().str.upper().str[:3]
+    elif 'type' in df.columns:
+        col = df['type']
+        if isinstance(col, pd.DataFrame): col = col.iloc[:,0]
+        df['type'] = col.fillna('RTO').astype(str).str.strip().str.upper().str[:3]
     else:
         df['type'] = 'RTO'
+    df['type'] = df['type'].where(df['type'].isin(['RTO','RVP']),'RTO')
 
     df['week'] = pd.to_numeric(df.get('week',0), errors='coerce').fillna(0).astype(int)
     df = df[df['week']>0]
