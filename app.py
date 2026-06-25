@@ -364,27 +364,17 @@ def main():
     html = html.replace('>1,27,871<', '>'+f"{total:,}"+'<')
 
     # Render full-page dashboard
-    # Encode as base64 data URI to prevent Streamlit from re-rendering
-    # This gives the iframe a stable src so it never reloads on Streamlit reruns
-    html_bytes = html.encode('utf-8')
-    b64_html = base64.b64encode(html_bytes).decode('ascii')
-    data_uri = f"data:text/html;base64,{b64_html}"
+    # Use srcdoc iframe - full JS support, stable across Streamlit reruns
+    html_escaped = html.replace('&', '&amp;').replace('"', '&quot;')
     
-    iframe_code = f'''
-    <iframe 
-        src="{data_uri}"
+    iframe_code = f'''<iframe 
+        srcdoc="{html_escaped}"
         width="100%" 
         height="6800px"
         frameborder="0"
-        style="border:none;display:block;overflow:hidden;"
-        scrolling="no"
-        id="dashboard-frame"
-    ></iframe>
-    <style>
-        iframe#dashboard-frame {{ border: none !important; }}
-        .stApp {{ overflow: hidden; }}
-    </style>
-    '''
+        style="border:none;display:block;"
+        id="resealing-dashboard"
+    ></iframe>'''
     st.markdown(iframe_code, unsafe_allow_html=True)
 
 if __name__ == "__main__":
