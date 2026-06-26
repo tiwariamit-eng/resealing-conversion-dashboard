@@ -148,6 +148,7 @@ def build_js_data(df):
                         flat.append({"m":m,"w":wk,"t":typ,"v":v,"r":r,"c":cnt})
         rd_objs.append("{rc:"+json.dumps(rc)+",d:"+json.dumps(flat)+"}")
 
+    mto={m:gbl(m,"overall") for m in MONTHS};  mtr={m:gbl(m,"RTO") for m in MONTHS};  mtv={m:gbl(m,"RVP") for m in MONTHS}
     all_verts=sorted(set(df["vert"].dropna().unique())-{""})
 
     def dec():
